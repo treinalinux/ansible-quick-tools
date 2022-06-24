@@ -1,0 +1,22 @@
+---
+- hosts: nis
+  gather_facts: false
+  become: true
+  tasks:
+    - name: "Habilitada a linha EnableRemoteCommands=1"
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^# EnableRemoteCommands=0'
+        line: 'EnableRemoteCommands=1'
+
+    - name: "Habilitada a linha EnableRemoteCommands=1"
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^EnableRemoteCommands=0'
+        line: 'EnableRemoteCommands=1'
+
+    - name: "Mantem Habilitada a linha EnableRemoteCommands=1"
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^EnableRemoteCommands=1'
+        line: 'EnableRemoteCommands=1'
