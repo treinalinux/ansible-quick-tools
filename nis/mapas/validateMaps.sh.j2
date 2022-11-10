@@ -1,19 +1,25 @@
 #!/bin/bash
 #
 # nome........: validateMaps
-# versão......: 0.1
+# versão......: 0.2
 # descrição...: Valida se os servidores secundários estão com os mapas atualizados
 # criado em...: 10/11/2022
 # criado por..: Alan da Silva Alves
-#
+
+# ------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------ #
 
 mapas=$(ls /var/yp/cientifico.empresa.corp)
 primario='perola.empresa.corp'
-secundario='localhost'
+secundario='{{ inventory_hostname }}'
 rm /tmp/report_*
+
+# ------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------ #
 
 function gera_report() {
     server=${1}
+
     for mapa in $mapas; do
        /usr/sbin/yppoll -h ${server} ${mapa} >> /tmp/report_${server}.txt
     done
@@ -22,6 +28,7 @@ function gera_report() {
 function compara_diferenca() {
     master=${1}
     slave=${2}
+
     diff -d /tmp/report_${master}.txt /tmp/report_${slave}.txt | grep 'order number'
 }
 
@@ -32,9 +39,12 @@ function retorna_resultado() {
         echo "Mapas são diferentes:"
         echo "$retorno"
     else
-        echo "Os mapas estão atualizados ${retorno}"
+        echo "Os mapas estão atualizados."
     fi
 }
+
+# ------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------ #
 
 gera_report ${primario}
 gera_report ${secundario}
