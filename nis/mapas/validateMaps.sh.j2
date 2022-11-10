@@ -35,9 +35,9 @@ function compara_diferenca() {
 function retorna_resultado() {
     retorno=$(compara_diferenca ${primario} ${secundario})
 
-    if [[ $retorno ]]; then
+    if [[ ${retorno} ]]; then
         echo "Mapas são diferentes:"
-        echo "$retorno"
+        echo "${retorno}"
     else
         echo "Os mapas estão atualizados."
     fi
