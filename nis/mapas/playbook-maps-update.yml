@@ -1,0 +1,24 @@
+---
+- name: diff maps of primary with secundary
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: template a validateMaps
+      ansible.builtin.template:
+        src: validateMaps.sh.j2
+        dest: /usr/local/bin/validateMaps.sh
+        owner: root
+        group: wheel
+        mode: '0644'
+
+    - name: crontab compare and validade maps
+      ansible.builtin.cron:
+        name: compare and validade maps nis
+        weekday: "*"
+        minute: "11"
+        hour: "*"
+        user: root
+        job: "/usr/bin/bash /usr/local/bin/validateMaps.sh"
+...
