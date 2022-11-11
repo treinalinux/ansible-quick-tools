@@ -13,7 +13,7 @@
         group: wheel
         mode: '0644'
 
-    - name: jub run as root compare and validade maps
+    - name: job run as root compare and validade maps
       ansible.builtin.cron:
         name: compare and validade maps nis
         weekday: "*"
