@@ -1,51 +1,77 @@
 #!/bin/bash
 #
-# nome........: validateMaps
-# versão......: 0.2
-# descrição...: Valida se os servidores secundários estão com os mapas atualizados
-# criado em...: 10/11/2022
-# criado por..: Alan da Silva Alves
+# nome............: validateMaps
+# versão..........: 0.3
+# descrição.......: Valida se os servidores secundários estão com os mapas atualizados
+# criado em.......: 10/11/2022
+# criado por......: Alan da Silva Alves
+# atualizado em...: 11/11/2022
+#                   códido foi refatorado
+#
+# ------------------------------------------------------------------------------------- #
 
-# ------------------------------------------------------------------------------ #
-# ------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------- #
+# Base inicial do sistema
+# ------------------------------------------------------------------------------------- #
 
+domain='cientifico.empresa.corp'
 mapas=$(ls /var/yp/cientifico.empresa.corp)
 primario='perola.empresa.corp'
+# template ansible vai identificar o nome do host
 secundario='{{ inventory_hostname }}'
-rm /tmp/report_*
 
-# ------------------------------------------------------------------------------ #
-# ------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------- #
+# Funções de uso do sistema
+# ------------------------------------------------------------------------------------- #
 
+# Apaga relatórios dos mapas antigos
+function apaga_report_antigo() {
+    report_old=$(ls /tmp/report_* 2> /dev/null)
+
+    if [[ ${report_old} ]]; then
+        rm /tmp/report_*
+    fi
+}
+
+# Gera relatório dos mapas consultados por yppoll
 function gera_report() {
     server=${1}
 
     for mapa in $mapas; do
-       /usr/sbin/yppoll -h ${server} ${mapa} >> /tmp/report_${server}.txt
+       /usr/sbin/yppoll -h ${server} -d ${domain} ${mapa} >> /tmp/report_${server}.txt
     done
 }
 
+# Compara da diferença dos mapas dos master e dos slave
 function compara_diferenca() {
     master=${1}
     slave=${2}
 
-    diff -d /tmp/report_${master}.txt /tmp/report_${slave}.txt | grep 'order number'
+    diff -d /tmp/report_${master}.txt /tmp/report_${slave}.txt
 }
 
+# Retorna do resultado a partir da diferença, qualquer valor retornado indica erro
+# O erro filtra pelo order number para mapas desatualizados
 function retorna_resultado() {
     retorno=$(compara_diferenca ${primario} ${secundario})
+    order_number=$(echo "${retorno}" | grep 'order number')
 
-    if [[ ${retorno} ]]; then
+    if [[ ${retorno} ]] && [[ ${order_number} ]]; then
         echo "Mapas são diferentes:"
+        echo "${retorno}"
+    elif [[ ${retorno} ]]; then
+        echo "Erro inesperado:"
         echo "${retorno}"
     else
         echo "Os mapas estão atualizados."
     fi
 }
 
-# ------------------------------------------------------------------------------ #
-# ------------------------------------------------------------------------------ #
+# ------------------------------------------------------------------------------------- #
+# Execução principal do sistema
+# ------------------------------------------------------------------------------------- #
 
+apaga_report_antigo
 gera_report ${primario}
 gera_report ${secundario}
 
