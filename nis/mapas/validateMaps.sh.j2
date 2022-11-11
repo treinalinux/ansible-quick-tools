@@ -1,12 +1,13 @@
 #!/bin/bash
 #
 # nome............: validateMaps
-# versão..........: 0.3
+# versão..........: 0.4
 # descrição.......: Valida se os servidores secundários estão com os mapas atualizados
 # criado em.......: 10/11/2022
 # criado por......: Alan da Silva Alves
 # atualizado em...: 11/11/2022
 #                   códido foi refatorado
+#                   sistema de logs implementado
 #
 # ------------------------------------------------------------------------------------- #
 
@@ -14,17 +15,26 @@
 # Base inicial do sistema
 # ------------------------------------------------------------------------------------- #
 
-domain='cientifico.empresa.corp'
+dominio='cientifico.empresa.corp'
 mapas=$(ls /var/yp/cientifico.empresa.corp)
 primario='perola.empresa.corp'
+
 # template ansible vai identificar o nome do host
 secundario='{{ inventory_hostname }}'
+
+# Variáveis para logs de sucesso, falhas e erros inesperados
+data=$(date "+%Y %b %a %e %T")
+logs_de_conformidade='/var/log/conformidade_maps.log'
+# Messagens de logs
+SUCESSO='SUCESSO: Os mapas estão atualizados.'
+FALHA='FALHA: Os mapas NÃO estão atualizados!'
+ERRO='ERRO: Erro inesperado!'
 
 # ------------------------------------------------------------------------------------- #
 # Funções de uso do sistema
 # ------------------------------------------------------------------------------------- #
 
-# Apaga relatórios dos mapas antigos
+# Apaga os relatórios dos mapas antigos
 function apaga_report_antigo() {
     report_old=$(ls /tmp/report_* 2> /dev/null)
 
@@ -38,7 +48,7 @@ function gera_report() {
     server=${1}
 
     for mapa in $mapas; do
-       /usr/sbin/yppoll -h ${server} -d ${domain} ${mapa} >> /tmp/report_${server}.txt
+       /usr/sbin/yppoll -h ${server} -d ${dominio} ${mapa} >> /tmp/report_${server}.txt
     done
 }
 
@@ -50,20 +60,21 @@ function compara_diferenca() {
     diff -d /tmp/report_${master}.txt /tmp/report_${slave}.txt
 }
 
-# Retorna do resultado a partir da diferença, qualquer valor retornado indica erro
+# Retorna do resultado a partir da diferença, qualquer valor retornado indica uma
+# falha do processo ou erro inesperado.
 # O erro filtra pelo order number para mapas desatualizados
 function retorna_resultado() {
     retorno=$(compara_diferenca ${primario} ${secundario})
     order_number=$(echo "${retorno}" | grep 'order number')
 
     if [[ ${retorno} ]] && [[ ${order_number} ]]; then
-        echo "Mapas são diferentes:"
-        echo "${retorno}"
+        echo "${retorno}" | tee -a $logs_de_conformidade
+        echo "${data} - ${HOSTNAME} - ${FALHA}" | tee -a $logs_de_conformidade
     elif [[ ${retorno} ]]; then
-        echo "Erro inesperado:"
-        echo "${retorno}"
+        echo "${retorno}" | tee -a $logs_de_conformidade
+        echo "${data} - ${HOSTNAME} - ${ERRO}" | tee -a $logs_de_conformidade
     else
-        echo "Os mapas estão atualizados."
+        echo "${data} - ${HOSTNAME} - ${SUCESSO}" | tee -a $logs_de_conformidade
     fi
 }
 
