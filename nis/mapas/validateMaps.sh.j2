@@ -1,10 +1,13 @@
 #!/bin/bash
 #
 # nome............: validateMaps
-# versão..........: 0.4
+# versão..........: 0.5
 # descrição.......: Valida se os servidores secundários estão com os mapas atualizados
 # criado em.......: 10/11/2022
 # criado por......: Alan da Silva Alves
+# atualizado em...: 13/11/2022
+#                   testa a existência dos arquivos
+#                   trata e melhora a saída de erro
 # atualizado em...: 11/11/2022
 #                   códido foi refatorado
 #                   sistema de logs implementado
@@ -28,7 +31,7 @@ logs_de_conformidade='/var/log/conformidade_maps.log'
 # Messagens de logs
 SUCESSO='SUCESSO: Os mapas estão atualizados.'
 FALHA='FALHA: Os mapas NÃO estão atualizados!'
-ERRO='ERRO: Erro inesperado!'
+ERRO='ERRO: Erro inesperado no sistema!'
 
 # ------------------------------------------------------------------------------------- #
 # Funções de uso do sistema
@@ -43,7 +46,23 @@ function apaga_report_antigo() {
     fi
 }
 
-# Gera relatório dos mapas consultados por yppoll
+# Testa se os arquivos reports existem antes da comparação
+function testa_report_existe() {
+    file_master=${1}
+    file_slave=${2}
+
+    if [[ ( -f ${file_master} ) ]] && [[ ( -f ${file_slave} ) ]]; then
+        echo "True"
+    elif [[ ( -f ${file_master} ) ]]; then
+        echo "File: $file_slave não existe!"
+    elif [[ ( -f ${file_slave} ) ]]; then
+        echo "File: $file_master não existe"
+    else
+        echo "Files: $file_master e $file_slave não existe!"
+    fi
+}
+
+# Gera relatórios dos mapas consultados usando o comando yppoll
 function gera_report() {
     server=${1}
 
@@ -52,26 +71,32 @@ function gera_report() {
     done
 }
 
-# Compara da diferença dos mapas dos master e dos slave
+# Compara a diferença dos mapas do master e dos slave
 function compara_diferenca() {
-    master=${1}
-    slave=${2}
+    file_master_path="/tmp/report_${1}.txt"
+    file_slave_path="/tmp/report_${2}.txt"
 
-    diff -d /tmp/report_${master}.txt /tmp/report_${slave}.txt
+    result_test=$(testa_report_existe ${file_master_path} ${file_slave_path})
+    if [[ ${result_test} = 'True' ]]; then
+        diff -d ${file_master_path} ${file_slave_path}
+    else
+        echo ${result_test}
+        exit 1
+    fi
 }
 
-# Retorna do resultado a partir da diferença, qualquer valor retornado indica uma
+# Retorna o resultado a partir da diferença, qualquer valor retornado indica uma
 # falha do processo ou erro inesperado.
-# O erro filtra pelo order number para mapas desatualizados
+# A falha é filtrada pelo order number para mapas desatualizados no slave
 function retorna_resultado() {
-    retorno=$(compara_diferenca ${primario} ${secundario})
-    order_number=$(echo "${retorno}" | grep 'order number')
+    return_diff=$(compara_diferenca ${primario} ${secundario})
+    order_number=$(echo "${return_diff}" | grep 'order number')
 
-    if [[ ${retorno} ]] && [[ ${order_number} ]]; then
-        echo "${retorno}" | tee -a $logs_de_conformidade
+    if [[ ${return_diff} ]] && [[ ${order_number} ]]; then
+        echo "${return_diff}" | tee -a $logs_de_conformidade
         echo "${data} - ${HOSTNAME} - ${FALHA}" | tee -a $logs_de_conformidade
-    elif [[ ${retorno} ]]; then
-        echo "${retorno}" | tee -a $logs_de_conformidade
+    elif [[ ${return_diff} ]]; then
+        echo "${return_diff}" | tee -a $logs_de_conformidade
         echo "${data} - ${HOSTNAME} - ${ERRO}" | tee -a $logs_de_conformidade
     else
         echo "${data} - ${HOSTNAME} - ${SUCESSO}" | tee -a $logs_de_conformidade
