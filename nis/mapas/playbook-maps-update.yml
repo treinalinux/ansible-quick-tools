@@ -17,7 +17,7 @@
       ansible.builtin.cron:
         name: compare and validade maps nis
         weekday: "*"
-        minute: "*/25"
+        minute: "5,35"
         hour: "*"
         user: root
         job: "/usr/bin/bash /usr/local/bin/validateMaps.sh"
