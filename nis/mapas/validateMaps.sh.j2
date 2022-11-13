@@ -75,10 +75,10 @@ function gera_report() {
 function compara_diferenca() {
     file_master_path="/tmp/report_${1}.txt"
     file_slave_path="/tmp/report_${2}.txt"
-
     result_test=$(testa_report_existe ${file_master_path} ${file_slave_path})
+
     if [[ ${result_test} = 'True' ]]; then
-        diff -d ${file_master_path} ${file_slave_path}
+        diff --color=always --unified=0 ${file_master_path} ${file_slave_path}
     else
         echo ${result_test}
         exit 1
