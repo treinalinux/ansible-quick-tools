@@ -21,4 +21,18 @@
         hour: "*"
         user: root
         job: "/usr/bin/bash /usr/local/bin/validateMaps.sh"
+
+    - name: Ensure UserParameter
+      ansible.builtin.lineinfile:
+        path: /etc/zabbix/zabbix_agentd.conf
+        regexp: '^# UserParameter='
+        state: present
+        line: 'UserParameter=GetMapsNisUpdate,/usr/bin/tail -1 /var/log/conformidade_maps.log'
+      notify: Restart Zabbix Agent
+
+  handlers:
+        - name: Restart Zabbix Agent
+          ansible.builtin.systemd:
+            state: restarted
+            name: zabbix-agent
 ...
