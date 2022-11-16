@@ -1,10 +1,12 @@
 #!/bin/bash
 #
 # nome............: validateMaps
-# versão..........: 0.5
+# versão..........: 0.6
 # descrição.......: Valida se os servidores secundários estão com os mapas atualizados
 # criado em.......: 10/11/2022
 # criado por......: Alan da Silva Alves
+# atualizado em...: 16/11/2022
+#                   ambiente de testes e produção
 # atualizado em...: 13/11/2022
 #                   testa a existência dos arquivos
 #                   trata e melhora a saída de erro
@@ -25,12 +27,18 @@ primario='perola.empresa.corp'
 # template ansible vai identificar o nome do host
 secundario='{{ inventory_hostname }}'
 
+# Ambiente de produção e testes
+# mode='Prod'
+mode='Test'
+mapa_desatualizado='/usr/share/nis_example_test.txt'
+
 # Variáveis para logs de sucesso, falhas e erros inesperados
 data=$(date "+%Y %b %a %e %T")
 logs_de_conformidade='/var/log/conformidade_maps.log'
 # Messagens de logs
 SUCESSO='SUCESSO: Os mapas estão atualizados.'
 FALHA='FALHA: Os mapas NÃO estão atualizados!'
+FALHA_TEST='FALHA TESTE: Os mapas NÃO estão atualizados!'
 ERRO='ERRO: Erro inesperado no sistema!'
 
 # ------------------------------------------------------------------------------------- #
@@ -107,8 +115,16 @@ function retorna_resultado() {
 # Execução principal do sistema
 # ------------------------------------------------------------------------------------- #
 
-apaga_report_antigo
-gera_report ${primario}
-gera_report ${secundario}
-
-retorna_resultado
+if [[ ${mode} = 'Prod' ]]; then
+    apaga_report_antigo
+    gera_report ${primario}
+    gera_report ${secundario}
+    retorna_resultado
+else
+    apaga_report_antigo
+    gera_report ${primario}
+    cp ${mapa_desatualizado} /tmp/report_${secundario}.txt
+    echo "${data} - ${HOSTNAME} - ${FALHA_TEST}" | tee -a $logs_de_conformidade
+    retorna_resultado
+    echo "${data} - ${HOSTNAME} - ${FALHA_TEST}" | tee -a $logs_de_conformidade
+fi
