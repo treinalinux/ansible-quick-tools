@@ -5,6 +5,14 @@
 
   tasks:
 
+    - name: Mapa desatualizado test
+      ansible.builtin.copy:
+        src: nis_example_test.txt
+        dest: /usr/share/nis_example_test.txt
+        owner: root
+        group: root
+        mode: '0644'
+
     - name: copy template validateMaps.sh
       ansible.builtin.template:
         src: template/validateMaps.sh.j2
