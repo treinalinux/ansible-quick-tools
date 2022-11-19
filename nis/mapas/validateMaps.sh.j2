@@ -1,16 +1,23 @@
 #!/bin/bash
 #
 # nome............: validateMaps
-# versão..........: 0.6
+# versão..........: 0.7
 # descrição.......: Valida se os servidores secundários estão com os mapas atualizados
 # criado em.......: 10/11/2022
 # criado por......: Alan da Silva Alves
-# atualizado em...: 16/11/2022
+# atualizado em...: 18/11/2022 para versão 0.7
+#                   novas funções para cada ambente:
+#                       - produção
+#                       - teste de falha
+#                       - erro inesperado
+# atualizado em...: 17/11/2022 para versão 0.6.1 
+#                   ambiente de testes e produção com validação de parametro
+# atualizado em...: 16/11/2022 para versão 0.6
 #                   ambiente de testes e produção
-# atualizado em...: 13/11/2022
+# atualizado em...: 13/11/2022 para versão 0.5
 #                   testa a existência dos arquivos
 #                   trata e melhora a saída de erro
-# atualizado em...: 11/11/2022
+# atualizado em...: 11/11/2022 para versão 0.4
 #                   códido foi refatorado
 #                   sistema de logs implementado
 #
@@ -22,14 +29,23 @@
 
 dominio='cientifico.empresa.corp'
 mapas=$(ls /var/yp/cientifico.empresa.corp)
+sistema=$(grep -o '8' /etc/redhat-release)
 primario='perola.empresa.corp'
 
 # template ansible vai identificar o nome do host
 secundario='{{ inventory_hostname }}'
 
-# Ambiente de produção e testes
-# mode='Prod'
-mode='Test'
+
+# Ambientes de trabalho para produção e simulação de teste e erro
+if [[ ${1} = 'Test' ]]; then
+    mode='Test'
+elif [[ ${1} = 'Err' ]]; then
+    mode='Err'
+else
+    mode='Prod'
+fi
+
+# Usa um mapa desatualizado para testes
 mapa_desatualizado='/usr/share/nis_example_test.txt'
 
 # Variáveis para logs de sucesso, falhas e erros inesperados
@@ -40,6 +56,7 @@ SUCESSO='SUCESSO: Os mapas estão atualizados.'
 FALHA='FALHA: Os mapas NÃO estão atualizados!'
 FALHA_TEST='FALHA TESTE: Os mapas NÃO estão atualizados!'
 ERRO='ERRO: Erro inesperado no sistema!'
+ERRO_TEST='ERRO TESTE: Erro inesperado no sistema!'
 
 # ------------------------------------------------------------------------------------- #
 # Funções de uso do sistema
@@ -56,23 +73,23 @@ function apaga_report_antigo() {
 
 # Testa se os arquivos reports existem antes da comparação
 function testa_report_existe() {
-    file_master=${1}
-    file_slave=${2}
+    local file_master=${1}
+    local file_slave=${2}
 
-    if [[ ( -f ${file_master} ) ]] && [[ ( -f ${file_slave} ) ]]; then
+    if [[ ( -f ${file_master} ) && ( -f ${file_slave} ) ]]; then
         echo "True"
     elif [[ ( -f ${file_master} ) ]]; then
-        echo "File: $file_slave não existe!"
+        echo "File: ${file_slave} não existe!"
     elif [[ ( -f ${file_slave} ) ]]; then
-        echo "File: $file_master não existe"
+        echo "File: ${file_master} não existe!"
     else
-        echo "Files: $file_master e $file_slave não existe!"
+        echo "Files: ${file_master} e ${file_slave} não existem!"
     fi
 }
 
 # Gera relatórios dos mapas consultados usando o comando yppoll
 function gera_report() {
-    server=${1}
+    local server=${1}
 
     for mapa in $mapas; do
        /usr/sbin/yppoll -h ${server} -d ${dominio} ${mapa} >> /tmp/report_${server}.txt
@@ -81,12 +98,14 @@ function gera_report() {
 
 # Compara a diferença dos mapas do master e dos slave
 function compara_diferenca() {
-    file_master_path="/tmp/report_${1}.txt"
-    file_slave_path="/tmp/report_${2}.txt"
-    result_test=$(testa_report_existe ${file_master_path} ${file_slave_path})
+    local file_master_path="/tmp/report_${1}.txt"
+    local file_slave_path="/tmp/report_${2}.txt"
+    local result_test=$(testa_report_existe ${file_master_path} ${file_slave_path})
 
-    if [[ ${result_test} = 'True' ]]; then
+    if [[ ${result_test} = 'True' && ${sistema} -ge '8' ]]; then
         diff --color=always --unified=0 ${file_master_path} ${file_slave_path}
+    elif [[ ${result_test} = 'True' && ${sistema} -eq '7' ]]; then
+        diff --unified=0 ${file_master_path} ${file_slave_path}
     else
         echo ${result_test}
         exit 1
@@ -97,18 +116,41 @@ function compara_diferenca() {
 # falha do processo ou erro inesperado.
 # A falha é filtrada pelo order number para mapas desatualizados no slave
 function retorna_resultado() {
-    return_diff=$(compara_diferenca ${primario} ${secundario})
-    order_number=$(echo "${return_diff}" | grep 'order number')
+    local return_diff=$(compara_diferenca ${primario} ${secundario})
+    local order_number=$(echo "${return_diff}" | grep 'order number')
 
     if [[ ${return_diff} ]] && [[ ${order_number} ]]; then
         echo "${return_diff}" | tee -a $logs_de_conformidade
-        echo "${data} - ${HOSTNAME} - ${FALHA}" | tee -a $logs_de_conformidade
+        echo "${data} - ${HOSTNAME} - ${FALHA}" | tee -a ${logs_de_conformidade}
     elif [[ ${return_diff} ]]; then
-        echo "${return_diff}" | tee -a $logs_de_conformidade
-        echo "${data} - ${HOSTNAME} - ${ERRO}" | tee -a $logs_de_conformidade
+        echo "${return_diff}" | tee -a ${logs_de_conformidade}
+        echo "${data} - ${HOSTNAME} - ${ERRO}" | tee -a ${logs_de_conformidade}
     else
-        echo "${data} - ${HOSTNAME} - ${SUCESSO}" | tee -a $logs_de_conformidade
+        echo "${data} - ${HOSTNAME} - ${SUCESSO}" | tee -a ${logs_de_conformidade}
     fi
+}
+
+function simula_falha(){
+    apaga_report_antigo
+    gera_report ${primario}
+    cp ${mapa_desatualizado} /tmp/report_${secundario}.txt
+    echo "${data} - ${HOSTNAME} - ${FALHA_TEST}" | tee -a ${logs_de_conformidade}
+    retorna_resultado
+    echo "${data} - ${HOSTNAME} - ${FALHA_TEST}" | tee -a ${logs_de_conformidade}
+}
+
+function simula_erro() {
+    apaga_report_antigo
+    echo "${data} - ${HOSTNAME} - ${ERRO_TEST}" | tee -a ${logs_de_conformidade}
+    retorna_resultado
+    echo "${data} - ${HOSTNAME} - ${ERRO_TEST}" | tee -a ${logs_de_conformidade}
+}
+
+function funcao_principal() {
+    apaga_report_antigo
+    gera_report ${primario}
+    gera_report ${secundario}
+    retorna_resultado
 }
 
 # ------------------------------------------------------------------------------------- #
@@ -116,15 +158,9 @@ function retorna_resultado() {
 # ------------------------------------------------------------------------------------- #
 
 if [[ ${mode} = 'Prod' ]]; then
-    apaga_report_antigo
-    gera_report ${primario}
-    gera_report ${secundario}
-    retorna_resultado
-else
-    apaga_report_antigo
-    gera_report ${primario}
-    cp ${mapa_desatualizado} /tmp/report_${secundario}.txt
-    echo "${data} - ${HOSTNAME} - ${FALHA_TEST}" | tee -a $logs_de_conformidade
-    retorna_resultado
-    echo "${data} - ${HOSTNAME} - ${FALHA_TEST}" | tee -a $logs_de_conformidade
+    funcao_principal
+elif [[ ${mode} = 'Test' ]]; then
+    simula_falha
+elif [[ ${mode} = 'Err' ]]; then
+    simula_erro
 fi
